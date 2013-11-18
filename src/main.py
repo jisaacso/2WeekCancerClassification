@@ -15,6 +15,8 @@ def signalProcessFeatures(signal,showfeature=False):
     #signal is 2D MxN
     SHAPE = signal.shape
     signal_smooth = np.array([])
+
+    #smooth across mass bins for each spectra
     for col in range(SHAPE[1]):
         #signal[:,col] = medianFilter(signal[:,col],k=299)
         ## TODO: why does smooth() return a signal of larger size??
@@ -27,7 +29,7 @@ def signalProcessFeatures(signal,showfeature=False):
         #signal[:,col] = (signal[:,col]-mu)/float(sigma)
         #signal[:,col]=signal[:,col]
 
-
+    #smooth across time for each mass bin
     #for row in range(SHAPE[0]):
         #signal[row,:]=medianFilter(signal[row,:],k=9)
         #ssm = smooth(signal[row,:],window_len=9)
@@ -60,17 +62,15 @@ def features(signal,featurelist=['pywt.db1.1','pywt.db1.5','mean','std','pywt.ha
             #for each spectra, pull out the Approximation and Detail coefficients
             for spectraIdx in range(SHAPE[1]): #for each of 100 spectra
                 coefs = pywt.wavedec(signal[:,spectraIdx].flatten(),pywtModel,level=level)
+                reconstructedSignal = pywt.idwt(coefs[0],None,pywtModel) #reconstruction of signal
                 fv_i = np.array([])
                 for l,c in enumerate(coefs):
                     #if l>1:# or l>=3: #only approximation
                     #    break
                     fv_i=np.append(fv_i,c)#[:min(len(c),5)]) #5
+                    fv_i=np.append(fv_i,reconstructedSignal)
                 fv = mycat(fv,fv_i,dim=1)
 
-            #extract the reconstructed signal
-            #for spectraIndex in range(SHAPE[1]):
-            #    wavelet = pywt.Wavelet(pywtModel)
-            #    phi, psi, x = wavelet.wavefun(level=level)
 
         
         if feature=='mean': #add sliding window mean?
@@ -114,7 +114,8 @@ if __name__=='__main__':
 
     msTrainClean = signalProcessFeatures(msTrain)
     #msTrainClean = msTrain
-    trainFV = features(msTrainClean,featurelist=['mean','std','pywt.haar.4','pywt.db2.4','pywt.coif1.4'])
+    trainFV = features(msTrainClean,featurelist=['mean','std','pywt.haar.1','pywt.haar.2','pywt.haar.4','pywt.haar.8'])
+                                                 # 'pywt.haar.4','pywt.db2.4','pywt.coif1.4'])
                                                  # 'pywt.db2.2','pywt.db2.4','pywt.db2.8','pywt.db2.16'])#,\
                                                  #'pywt.db2.400','pywt.db2.1000'])
     #mu = trainFV.mean()
@@ -130,11 +131,14 @@ if __name__=='__main__':
     #sigma = np.tile(sigma[:,np.newaxis],(1,MSSHAPE[1]))
     #trainFV_n = (trainFV-mu)/sigma
 
+    reduceFeatureSpace = False
+
     if retrain:
         msTrainLabel = np.fromfile(spectraLabels,sep='\t')
 
-        pca = PCA(n_components=2)
+        pca = PCA(n_components=20)
         fv_pca = pca.fit_transform(trainFV_n.T)
+        print fv_pca.shape
 
         marker={1:'*r',-1:'ob'}
         figure()
@@ -146,8 +150,12 @@ if __name__=='__main__':
                     'gamma': np.logspace(-4,0,5)
                     }
         gs_svc = GridSearchCV(SVC(),svc_params,scoring='roc_auc',n_jobs=-1)
-        gs_svc.fit(trainFV_n.T,msTrainLabel,cv=LeaveOneOut(len(msTrainLabel)))
-        
+
+        if not reduceFeatureSpace:
+            gs_svc.fit(trainFV_n.T,msTrainLabel,cv=LeaveOneOut(len(msTrainLabel)))
+        else:
+            gs_svc.fit(fv_pca,msTrainLabel,cv=LeaveOneOut(len(msTrainLabel)))
+
         print trainFV_n.shape
         print '================'
         print gs_svc
@@ -157,8 +165,12 @@ if __name__=='__main__':
         
         print '================'
         svmmodel = gs_svc.best_estimator_
-        trainPred = svmmodel.predict(trainFV_n.T)
-        
+
+        if not reduceFeatureSpace:
+            trainPred = svmmodel.predict(trainFV_n.T)
+        else:
+            trainPred = svmmodel.predict(pca.fit_transform(trainFV_n))
+
         print classification_report(msTrainLabel,trainPred)
         print confusion_matrix(msTrainLabel,trainPred)
         
