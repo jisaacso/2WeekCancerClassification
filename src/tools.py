@@ -157,6 +157,43 @@ def medianFilter(x, k=9):
         y[-j:,-(i+1)] = x[-1]
     return np.median (y, axis=1)
 
+######################################################################
+# cat two 1D arrays ala hstack or vstack. Used to grow an empty matrix
+def mycat(s1,s2,dim=0):
 
+    if dim ==0:
 
+        if s1.ndim == 1:
+            #edge case, first time appending
+            if s1.shape==(0,):
+                if s2.ndim==1:
+                    return s2[np.newaxis,:]
+                else:
+                    return s2
+
+            s1 = s1[np.newaxis,:]
+        if s2.ndim == 1:
+            s2 = s2[np.newaxis,:]
+        if not s1.shape[1] == s2.shape[1]:
+            raise Exception('Input signals are not the same shape: '+str(s1.shape)+' '+str(s2.shape))
+        return np.concatenate((s1,s2),axis=0)
+
+    elif dim==1:
+        if s1.ndim == 1:
+            #edge case, first time appending
+            if s1.shape==(0,):
+                if s2.ndim==1:
+                    return s2[:,np.newaxis]
+                else:
+                    return s2
+
+            s1 = s1[:,np.newaxis]
+        if s2.ndim == 1:
+            s2 = s2[:,np.newaxis]
+        if not s1.shape[0] == s2.shape[0]:
+            raise Exception('Input signals are not the same shape: '+str(s1.shape)+' '+str(s2.shape))
+        return np.concatenate((s1,s2),axis=1)
+
+    else:
+        raise Exception('Invalid dimension, only accepts 0 or 1')
 
