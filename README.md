@@ -2,3 +2,34 @@
 =========================
 
 Project files for cancer classification using spectroscopic data.
+
+JOE:
+
+I have a 0.96 GridsearchCV score on the training data.
+
+To run the trained module on a validation set, DATA.txt with truth labels LABELS.txt:
+>> python src/msDetect.py DATA.txt 10000 False output/cancer_train.pkl LABELS.txt
+
+e.g., to run on the training set:
+>> python src/msDetect.py sample_data/cancer_train.data 10000 False output/cancer_train.pkl sample_data/cancer_train.labels
+
+To train a ML model I did the following:
+1. Center, scale and log() each feature to best approximate a normal distribution. Save the scaling.
+
+2. Convert the features to Vowpal Wabbit formatting
+>> python py2vw.py
+
+3. Run Vowpal Wabbit's logistic regression with L1 regularization model to rank the 10k features:
+To install Vowpal Wabbit on MacOSx see the instructions at:
+https://gist.github.com/mreid/1700908
+Please find a detailed description of VW at:
+https://github.com/JohnLangford/vowpal_wabbit/wiki/using-vw-varinfo
+
+I ran the command:
+>> vw-varinfo -c -k --passes 13 --l1 0.00001 sample_data/vw_train_n_l > output/varinfo_l1_l.txt
+output/varinfo_l1_l.txt has a list of all 10k features, ranked by RelScore.
+
+4. I extract the 1000 features with the largest positive and 1000 features with the smallest negatvie RelScore
+(i.e., correlates with +/- labels the most)
+
+5. I run a linear SVM with GridsearchCV on these 2k features
